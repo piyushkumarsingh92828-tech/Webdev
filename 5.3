@@ -1,0 +1,234 @@
+Folder Structure
+ecommerce-catalog/
+│
+├── server.js
+├── config/
+│   └── db.js
+├── models/
+│   └── categoryModel.js
+├── controllers/
+│   └── categoryController.js
+└── routes/
+    └── categoryRoutes.js
+
+📄 server.js
+const express = require("express");
+const bodyParser = require("body-parser");
+const connectDB = require("./config/db");
+const categoryRoutes = require("./routes/categoryRoutes");
+
+const app = express();
+app.use(bodyParser.json());
+
+// Connect to MongoDB
+connectDB();
+
+// Routes
+app.use("/api/categories", categoryRoutes);
+
+const PORT = 3000;
+app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
+
+⚙️ config/db.js
+const mongoose = require("mongoose");
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect("mongodb://127.0.0.1:27017/ecommerceDB", {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("✅ MongoDB connected successfully");
+  } catch (err) {
+    console.error("❌ MongoDB connection failed:", err);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+
+🧩 models/categoryModel.js
+const mongoose = require("mongoose");
+
+// Variant Schema (Nested inside product)
+const variantSchema = new mongoose.Schema({
+  color: String,
+  size: String,
+  stock: Number,
+  price: Number,
+});
+
+// Product Schema (Nested inside category)
+const productSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  description: String,
+  basePrice: Number,
+  brand: String,
+  variants: [variantSchema],
+});
+
+// Category Schema (Top-level)
+const categorySchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  description: String,
+  products: [productSchema],
+});
+
+module.exports = mongoose.model("Category", categorySchema);
+
+🧠 controllers/categoryController.js
+const Category = require("../models/categoryModel");
+
+// ➕ Create a new category
+exports.createCategory = async (req, res) => {
+  try {
+    const category = new Category(req.body);
+    await category.save();
+    res.status(201).json(category);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// 📋 Get all categories
+exports.getCategories = async (req, res) => {
+  try {
+    const categories = await Category.find();
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔍 Get a category by ID
+exports.getCategoryById = async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.id);
+    if (!category) return res.status(404).json({ message: "Category not found" });
+    res.json(category);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ✏️ Update category
+exports.updateCategory = async (req, res) => {
+  try {
+    const category = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!category) return res.status(404).json({ message: "Category not found" });
+    res.json(category);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// ❌ Delete category
+exports.deleteCategory = async (req, res) => {
+  try {
+    const category = await Category.findByIdAndDelete(req.params.id);
+    if (!category) return res.status(404).json({ message: "Category not found" });
+    res.json({ message: "Category deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ➕ Add a new product inside a category
+exports.addProductToCategory = async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.id);
+    if (!category) return res.status(404).json({ message: "Category not found" });
+
+    category.products.push(req.body);
+    await category.save();
+
+    res.status(201).json(category);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// ➕ Add a variant to a product inside a category
+exports.addVariantToProduct = async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.categoryId);
+    if (!category) return res.status(404).json({ message: "Category not found" });
+
+    const product = category.products.id(req.params.productId);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    product.variants.push(req.body);
+    await category.save();
+
+    res.status(201).json(category);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+🛣️ routes/categoryRoutes.js
+const express = require("express");
+const router = express.Router();
+const categoryController = require("../controllers/categoryController");
+
+// Category CRUD
+router.post("/", categoryController.createCategory);
+router.get("/", categoryController.getCategories);
+router.get("/:id", categoryController.getCategoryById);
+router.put("/:id", categoryController.updateCategory);
+router.delete("/:id", categoryController.deleteCategory);
+
+// Nested operations
+router.post("/:id/products", categoryController.addProductToCategory);
+router.post("/:categoryId/products/:productId/variants", categoryController.addVariantToProduct);
+
+module.exports = router;
+
+🚀 How to Run
+
+Install dependencies
+
+npm init -y
+npm install express mongoose body-parser
+
+
+Start MongoDB
+
+mongod
+
+
+Run the server
+
+node server.js
+
+🧾 Sample API Requests
+1️⃣ Create a Category
+
+POST /api/categories
+
+{
+  "name": "Electronics",
+  "description": "Devices and gadgets"
+}
+
+2️⃣ Add a Product to Category
+
+POST /api/categories/<category_id>/products
+
+{
+  "name": "Smartphone",
+  "description": "Latest Android phone",
+  "basePrice": 599,
+  "brand": "Samsung"
+}
+
+3️⃣ Add Variant to a Product
+
+POST /api/categories/<category_id>/products/<product_id>/variants
+
+{
+  "color": "Black",
+  "size": "128GB",
+  "stock": 50,
+  "price": 649
+}
